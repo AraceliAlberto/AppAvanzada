@@ -1,0 +1,243 @@
+import 'package:flutter/material.dart';
+import 'package:eco_avanzado/widgets/boton.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+
+class GustosPantalla extends StatefulWidget {
+  final String sueldo;
+  const GustosPantalla({super.key, required this.sueldo});
+
+  @override
+  State<GustosPantalla> createState() => _GustosPantallaState();
+}
+
+class _GustosPantallaState extends State<GustosPantalla> {
+  //---------------------variables-----------------
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _montoController = TextEditingController();
+  final List<Map<String, dynamic>> _gustos = [];
+
+  //---------------------ciclo de vida-----------------
+  @override
+  void initState() {
+    super.initState();
+    _cargarGustos();
+  }
+
+  //---------------------persistencia-----------------
+  void _guardarGustos() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String gustosJson = jsonEncode(_gustos);
+    await prefs.setString('gustos_guardados', gustosJson);
+  }
+
+  void _cargarGustos() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? gustosJson = prefs.getString('gustos_guardados');
+    if (gustosJson != null) {
+      List<dynamic> data = jsonDecode(gustosJson);
+      setState(() {
+        _gustos.addAll(data.map((e) => Map<String, dynamic>.from(e)));
+      });
+    }
+  }
+
+  //---------------------funciones-----------------
+  void _agregarGusto() async {
+    final nombre = _nombreController.text.trim();
+    final monto = int.tryParse(_montoController.text.trim());
+
+    if (nombre.isNotEmpty && monto != null) {
+      final sueldoDisponible = double.tryParse(widget.sueldo) ?? 0;
+      final totalActual = _gustos.fold<int>(
+        0,
+        (sum, item) => sum + item['monto'] as int,
+      );
+      final nuevoTotal = totalActual + monto;
+
+      if (nuevoTotal > sueldoDisponible) {
+        final continuar = await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Exceso de presupuesto'),
+                content: Text(
+                  'El total de gustos ($nuevoTotal bs) excede tu sueldo disponible (${sueldoDisponible.toStringAsFixed(2)} bs).\n\n¿Deseas continuar de todos modos?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('No'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Sí'),
+                  ),
+                ],
+              ),
+        );
+
+        if (continuar != true) return;
+      }
+
+      setState(() {
+        _gustos.add({'nombre': nombre, 'monto': monto});
+        _gustos.sort((a, b) => b['monto'].compareTo(a['monto']));
+        _nombreController.clear();
+        _montoController.clear();
+      });
+      _guardarGustos();
+    }
+  }
+
+  void _eliminarGusto(int index) {
+    setState(() {
+      _gustos.removeAt(index);
+    });
+    _guardarGustos();
+  }
+
+  int _calcularTotal() {
+    return _gustos.fold<int>(
+      0,
+      (suma, gusto) => suma + (gusto['monto'] as int),
+    );
+  }
+
+  //---------------------widget-----------------
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text(
+          'Detalles de Gustos',
+          style: TextStyle(
+            fontSize: 20,
+            letterSpacing: 1.2,
+            color: Colors.white,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        backgroundColor: Color.fromARGB(200, 17, 31, 17),
+        foregroundColor: Colors.white,
+        toolbarHeight: 70,
+      ),
+      body: Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              'Sueldo disponible: ${widget.sueldo} bs',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+            SizedBox(height: 30),
+            //---------------------fila de entrada-----------------
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _nombreController,
+                    decoration: const InputDecoration(
+                      hintText: 'Detalles del gasto',
+                      fillColor: Colors.white,
+                      filled: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _montoController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Monto',
+                      fillColor: Colors.white,
+                      filled: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _agregarGusto,
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            //---------------------texto informativo-----------------
+            const SizedBox(height: 10),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Mantén pulsado sobre un gusto para eliminarlo.',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 20),
+            //---------------------visualizar lista-----------------
+            Expanded(
+              child: ListView.builder(
+                itemCount: _gustos.length,
+                itemBuilder: (context, index) {
+                  final gusto = _gustos[index];
+                  return GestureDetector(
+                    onLongPress: () => _eliminarGusto(index),
+                    child: ListTile(
+                      title: Text(
+                        gusto['nombre'],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: Text(
+                        '${gusto['monto']} Bs',
+                        style: const TextStyle(
+                          color: Color.fromARGB(255, 202, 202, 202),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            //---------------------total-----------------
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Total: ${_calcularTotal()} Bs',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            Boton(
+              text: "Volver y guardar",
+              onPressed: () {
+                final total = _calcularTotal().toDouble();
+                Navigator.pop(context, total);
+              },
+              colorbtn: const Color(0xFF4CAF50),
+              colortxt: Colors.black,
+            ),
+            SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
