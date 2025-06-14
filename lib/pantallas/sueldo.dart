@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eco_avanzado/pantallas/distribucion.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class sueldoPantalla extends StatefulWidget {
   const sueldoPantalla({super.key});
@@ -10,6 +11,20 @@ class sueldoPantalla extends StatefulWidget {
 
 class _sueldoPantallaState extends State<sueldoPantalla> {
   final sueldoController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarSueldo();
+  }
+
+  void _cargarSueldo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sueldoGuardado = prefs.getString('sueldo');
+    if (sueldoGuardado != null) {
+      sueldoController.text = sueldoGuardado;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +155,7 @@ class _sueldoPantallaState extends State<sueldoPantalla> {
                       vertical: 16,
                     ),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     String sueldo = sueldoController.text;
                     if (sueldo.isEmpty) {
                       showDialog(
@@ -161,6 +176,9 @@ class _sueldoPantallaState extends State<sueldoPantalla> {
                       );
                       return;
                     }
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('sueldo', sueldo);
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
