@@ -124,7 +124,7 @@ class _GastosFijosState extends State<GastosFijos> {
       //---------------------degrade ---------------------------------
       body: Container(
         //---------------------degrade -----------------
-        padding: const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Text(
